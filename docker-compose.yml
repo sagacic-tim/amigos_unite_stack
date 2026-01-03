@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:17
+    container_name: amigos_unite_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: amigos_unite_api_development
+      POSTGRES_USER: drruby
+      POSTGRES_PASSWORD: examplepassword
+      # For dev only – allows password-less host auth from other containers
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - amigos_unite_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    build:
+      context: ../amigos_unite_api
+      dockerfile: Dockerfile
+    container_name: amigos_unite_api
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      RAILS_ENV: development
+
+      # Point Rails at the db *container* (service name "db")
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: drruby
+      # If you later add password to database.yml:
+      # PGPASSWORD: examplepassword
+
+      # Mailer – safe placeholder in dev
+      SENDGRID_API_KEY: "dummy-development-key"
+
+      # Optional: if your code reads these in dev
+      # APP_HOST: localhost
+      # APP_PROTOCOL: https
+      # APP_PORT: 3001
+
+    command: bundle exec puma -C config/puma.rb
+    ports:
+      - "3001:3001"
+
+  web:
+    build:
+      context: ../amigos_unite_app
+      dockerfile: Dockerfile
+    container_name: amigos_unite_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      # If your frontend reads this at build/runtime, you can set it too:
+      # VITE_API_BASE_URL: "https://localhost:8080/api/v1"
+    ports:
+      - "8080:443"   # host:container → browser hits https://localhost:8080
+    volumes:
+      - "${HOME}/ruby_projects/localhost+2.pem:/etc/nginx/certs/localhost+2.pem:ro"
+      - "${HOME}/ruby_projects/localhost+2-key.pem:/etc/nginx/certs/localhost+2-key.pem:ro"
+
+volumes:
+  amigos_unite_pgdata:
+    driver: local
